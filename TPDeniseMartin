@@ -1,0 +1,319 @@
+# TRABAJO PRACTICO DE MATEMATICAS 3 - 2022
+# Universidad de San Martin
+# DENISE MARTIN
+
+# HIPOTESIS: ¿Se puede predecir la Demencia o Alzheimer’s?
+# En este caso tomaremos como factor principal el Normalized Whole-Brain Volume y Age
+# como principal variable, sin embargo es posible considerar otras que tambien
+# son informadas en el dataset
+
+# Importo las librerias que me permitiran Operar a posteriori
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import LabelEncoder
+from sklearn.preprocessing import OneHotEncoder
+from sklearn.compose import make_column_transformer
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression
+from sklearn import metrics
+from sklearn.svm import SVC
+import seaborn as sns
+
+# Recibo los datos como dataset
+df = pd.read_csv('E:\Mate3\Scrips_Python\Python_VSC\Py_TPDeniseMartin\datasetCL.csv')
+df.head()
+print('La panilla es:\n')
+print(df)
+
+# Retiro las columnas que no van a utilizarse
+df = df.drop(['ID', 'Hand', 'EstimatedTotalIntracranialVolume', 'ASF','Delay'], axis=1)
+# En este caso sabemos que todos son diestros, y no nos interesa su ID o 
+# si hubo demoras en la entrega el MRI. Tambien se quitaran del dataset las 
+# mediciones de volumen intracraneal (ya que se usaran las de volumen total de cerebro)
+# y el Factor de Escala de Atlas
+print('El dataset sin las columnas eliminadas es:\n')
+print(df)
+
+# Uno de los motivos del MRI es correlacionar el tamaño con la posibilidad de Demencia
+# Aquellos casos sin medicion (nWBV == 0) son eliminados del dataset para evitar resultados erroneos
+df[df.NormalizedWholeBrainVolume != 0]
+print('El dataset con el Valor normalizado de Cerebro completo sin ceros es:\n')
+print(df)
+
+# En el dataset hay muchos datos desconocidos, por lo cual se procede a reemplazarlos por
+# las modass correspondientes a cada columnas, para evitar tener una perdida muy 
+# grande de datos y, si bien acrecenta el error, no da una perdida
+# tan grande del tamaño de muestra
+print('El dataset describe es:\n')
+print(df.describe())
+# 1°) verifica la existencia de desconocidos o faltantes
+print('El dataset tiene valores desconocidos? = ')
+print(df.isnull().values.any())
+# 2°) verifica la ubicacion general de desconocidos o faltantes
+print('El dataset donde tiene valores desconocidos? = \n')
+print(df.isnull().any())
+# Podemos ver que educacion, estado Socio-economico, Test de salud mental 
+# y rating de Demencia tienen valores Nan
+df['ClinicalDementiaRating'].fillna(int(df['ClinicalDementiaRating'].mode()), inplace=True)
+print('El dataset completa con moda el Valor normalizado de Cerebro completo:\n')
+print(df)
+# Este ultimo paso, permitio llenar los Nan de la Variable Dependiente
+
+# Separo mi array de Variable Dependiente: Clinical Dementia Rating
+y = df.iloc[:, 6].values
+print('El array de Variable dependiente es: \n')
+print(y)
+# Separo mi matriz de Variables Independientes: Sexo, Edad, Estado socio-economico
+# estado mental, normalizacion de volumen completo de cerebro
+x = df.iloc[:, :6].values
+print('La matriz de Variables independientes es: \n')
+print(x)
+
+# NOTA: tambien seria posible procesar los datos cualitativos: F/M
+# convietiendolos a matriz binaria con One-Hot
+# onehotencoder = make_column_transformer((OneHotEncoder(), [0]), remainder = "passthrough")
+# x = onehotencoder.fit_transform(x)
+# pero como en este caso no se van a utilizar para ambos casos de pueba, no se realizo
+# para evitar sumar una columna mas a la matriz
+
+# Completo los valores Nan con las Medias respectivas
+# para la matriz X
+imputer = SimpleImputer(missing_values = np.nan, strategy="most_frequent")
+imputer = imputer.fit(x[:,2:6])
+x[:,2:6] = imputer.transform(x[:,2:6])
+print('El array de Variable independientes con Nan reemplazados por mas frecuente es: \n')
+print(x)
+
+# Caso 1: Volumen normalizado de Cerebro completo
+# La seleccion de Regresion Lineal Simple Surge a Partir de la idea de probar o 
+# predecir Demencia a partir del Volumen normalizado de Cerebro completo
+# Para ello se extrae NormalizedWholeBrainVolume de la matriz X:
+x = df.iloc[:, 5:6].values
+print('La matriz de Variable independientes e: \n')
+print(x)
+
+# Se separa aleatoriamente los sets de Train y Test para X e Y
+x_train, x_test, y_train, y_test = train_test_split(x, y, test_size= 0.2, random_state = 0)
+print('La matriz de Variables independientes Train es: \n')
+print(x_train)
+print('La matriz de Variables independientes Test es: \n')
+print(x_test)
+print('El array de Variable dependiente Train es: \n')
+print(y_train)
+print('El array de Variable dependiente Test es: \n')
+print(y_test)
+
+# Se procesan los datos para la Regresion Lineal
+df_aux = pd.DataFrame({'x_train': x_train.flatten(), 'y_train': y_train.flatten()})
+print('El set Train es: \n')
+print(df_aux)
+df_aux = pd.DataFrame({'x_test': x_test.flatten(), 'y_test': y_test.flatten()})
+print('El set Test es: \n')
+print(df_aux)
+
+# Se plantea la Regresion con los datos de entrenamiento
+regression = LinearRegression()
+regression.fit(x_train, y_train)
+
+# Se obtiene el interceptor:
+print("El interceptor es: ")
+print(regression.intercept_)
+# Se obtiene la pendiente
+print("La pendiente es: ")
+print(regression.coef_)
+
+# Se arman las Predicciones
+y_pred = regression.predict(x_test)
+
+# Se plantea el grafico correspondiente al Train
+fig = plt.figure(figsize=(6,5), facecolor='ivory')
+plt.scatter(x_train, y_train, color = "blue")
+plt.plot(x_train, regression.predict(x_train), color = "red")
+plt.title("Demencia vs Volumen Cerebral (Train Set)",size = 18, color = 'black')
+plt.xlabel("Volumen Cerebral")
+plt.ylabel("Demencia")
+plt.show()
+
+# Se plantea el grafico correspondiente al Test
+fig = plt.figure(figsize=(6,5), facecolor='ivory')
+plt.scatter(x_test, y_test, color = "orange")
+plt.plot(x_train, regression.predict(x_train), color = "red")
+plt.title("Demencia vs Volumen Cerebral (Test Set)",size = 18, color = 'black')
+plt.xlabel("Volumen Cerebral")
+plt.ylabel("Demencia")
+plt.show()
+
+# Se plantea un Grafico de Barras para Regresion Lineal Simple con Train y Test
+df1 = pd.DataFrame({'Actual': y_test.flatten(), 'Predicted': y_pred.flatten()})
+df1 = df1.head(50)
+df1.plot(kind='bar',figsize=(12,7))
+plt.grid(which='major', linestyle='-', linewidth='0.5', color='grey')
+plt.grid(which='minor', linestyle='dotted', linewidth='1', color='green')
+plt.title("Demencia vs Volumen Cerebral (Actual y Prediccion)",size = 18, color = 'black')
+plt.xlabel("Cantidad de registros")
+plt.ylabel("Demencia")
+plt.show()
+
+
+# Se plantean las Metricas de Evaluacion
+print('Error Medio Absoluto (MAE) del Caso 1:', metrics.mean_absolute_error(y_test, y_pred))
+print('Error cuadrático medio (MSE) del Caso 1:', metrics.mean_squared_error(y_test, y_pred))
+print('Raíz cuadrada del error cuadrático medio (RMSE) del Caso 1:', np.sqrt(metrics.mean_squared_error(y_test, y_pred)))
+# Error Medio Absoluto (MAE) del Caso 1: 0.14066423665478933
+# Error cuadrático medio (MSE) del Caso 1: 0.04189760470831364
+# Raíz cuadrada del error cuadrático medio (RMSE) del Caso 1: 0.20468904393814938
+
+# Conclusion 1:
+# Si bien hay una tendencia, no es posible precedir la demencia desde el Volumen
+# del cerebro ya que los grupos de datos en el grafico de dispersion se encuentran
+# alineados al eje x y no con una pronunciada y balanceada pendiente
+# El grafico de barras solo confirma la inferencia del grafico de dispersion
+# La tendencia de la grafica muestra que a mayor Volumen cerebral existe
+# menor probabilidad de Demencia
+
+# _______________________________________________________________________________________
+
+# Caso 2: Volumen normalizado de Cerebro completo
+# La seleccion de Regresion Lineal Simple Surge a Partir de la idea de probar o 
+# predecir Demencia a partir de la Edad
+# Para ello se extrae Age de la matriz X:
+x2 = df.iloc[:, 1:2].values
+print('La matriz de Variable independientes e: \n')
+print(x)
+# Se plantea el array y:
+y2 = y
+print('El array de Variable dependientes es: \n')
+print(y)
+
+# Se separa aleatoriamente los sets de Train y Test para X e Y
+x2_train, x2_test, y2_train, y2_test = train_test_split(x2, y2, test_size= 0.2, random_state = 0)
+print('La matriz de Variables independientes Train es: \n')
+print(x2_train)
+print('La matriz de Variables independientes Test es: \n')
+print(x2_test)
+print('El array de Variable dependiente Train es: \n')
+print(y2_train)
+print('El array de Variable dependiente Test es: \n')
+print(y2_test)
+
+# Se procesan los datos para la Regresion Lineal
+df_aux2 = pd.DataFrame({'x_train': x2_train.flatten(), 'y_train': y2_train.flatten()})
+print('El set Train es: \n')
+print(df_aux2)
+df_aux2 = pd.DataFrame({'x_test': x2_test.flatten(), 'y_test': y2_test.flatten()})
+print('El set Test es: \n')
+print(df_aux2)
+
+# Se plantea la Regresion con los datos de entrenamiento
+regression = LinearRegression()
+regression.fit(x2_train, y2_train)
+
+# Se obtiene el interceptor:
+print("El interceptor es: ")
+print(regression.intercept_)
+# Se obtiene la pendiente
+print("La pendiente es: ")
+print(regression.coef_)
+
+# Se arman las Predicciones
+y2_pred = regression.predict(x2_test)
+
+# Se plantea el grafico correspondiente al Train
+fig = plt.figure(figsize=(6,5), facecolor='ivory')
+plt.scatter(x2_train, y2_train, color = "blue")
+plt.plot(x2_train, regression.predict(x2_train), color = "red")
+plt.title("Demencia vs Edad (Train Set)",size = 22, color = 'black')
+plt.xlabel("Edad")
+plt.ylabel("Demencia")
+plt.show()
+
+# Se plantea el grafico correspondiente al Test
+fig = plt.figure(figsize=(6,5), facecolor='ivory')
+plt.scatter(x2_test, y2_test, color = "orange")
+plt.plot(x2_train, regression.predict(x2_train), color = "red")
+plt.title("Demencia vs Edad (Test Set)",size = 22, color = 'black')
+plt.xlabel("Edad")
+plt.ylabel("Demencia")
+plt.show()
+
+# Se plantea un Grafico de Barras para Regresion Lineal Simple con Train y Test
+df2 = pd.DataFrame({'Actual': y2_test.flatten(), 'Predicted': y2_pred.flatten()})
+df2 = df2.head(50)
+df2.plot(kind='bar',figsize=(12,7))
+plt.grid(which='major', linestyle='-', linewidth='0.5', color='grey')
+plt.grid(which='minor', linestyle='dotted', linewidth='1', color='green')
+plt.title("Demencia vs Edad (Actual y Prediccion)",size = 18, color = 'black')
+plt.xlabel("Cantidad de registros")
+plt.ylabel("Demencia")
+plt.show()
+
+# Se plantean las Metricas de Evaluacion
+print('Error Medio Absoluto (MAE) del Caso 2:', metrics.mean_absolute_error(y2_test, y2_pred))
+print('Error cuadrático medio (MSE) del Caso 2:', metrics.mean_squared_error(y2_test, y2_pred))
+print('Raíz cuadrada del error cuadrático medio (RMSE) del Caso 2:', np.sqrt(metrics.mean_squared_error(y2_test, y2_pred)))
+# Error Medio Absoluto (MAE) del Caso 2: 0.14177869543379432
+# Error cuadrático medio (MSE) del Caso 2: 0.04296888250631051
+# Raíz cuadrada del error cuadrático medio (RMSE) del Caso 2: 0.20728936901421285
+
+# Conclusion 2:
+# Si bien hay una tendencia, no es posible precedir la demencia desde la Edad
+# ya que los grupos de datos en el grafico de dispersion se encuentran
+# alineados al eje x y no con una pronunciada y balanceada pendiente
+# El grafico de barras solo confirma la inferencia del grafico de dispersion
+# La tendencia de la grafica muestra que a mayor Edad existe una 
+# mayor probabilidad de Demencia en poco mejor grado que el de Volumen cerebral
+# vs Demencia
+
+# Conclusion General:
+# En ambos casos hay una clara tendencia pero dado que las predicciones no son concluyentes,
+# se infiere que se necesitan mas datos para poder llevar a cabo una relacion que 
+# permita predecir la aparicion de un caso de Demencia.
+# La falta de algunos datos como Nan y la necesidad de subplantar esos espacios por la moda, 
+# tambien pudo traer aparejado una serie de errores que se traducen a la conclusion.
+# Si bien en ambos casos los errores de las metricas de evaluacion son relativamente bajos,
+# no implica que la correlacion entre ambas variables sea precisa
+# NOTA: notese que no se usa el total de datos en la grafica de barras y que ademas
+# se utilizo solo el archivo de Cortes Longitudinales. Es posible, entonces, encontrar
+# datos distintos, o mas concluyentes, si se analizan ambos datasets con todos los datos.
+
+
+# Bonus: Mapa de Calor
+
+# Importo los archivos y muestro como estan formados
+data_cross = pd.read_csv('E:\Mate3\Scrips_Python\Python_VSC\Py_TPDeniseMartin\oasis_cross-sectional.csv')
+data_long = pd.read_csv('E:\Mate3\Scrips_Python\Python_VSC\Py_TPDeniseMartin\oasis_longitudinal.csv')
+print(data_cross.info())
+print(data_long.info())
+
+# Busco valores desconocidos
+print(data_cross.isna().sum())
+print("\n")
+print(data_long.isna().sum())
+
+# Elimino los datos que no voya utilizar
+data_cross.dropna(subset=['CDR'],inplace=True)
+data_cross.drop(columns=['ID','Delay'],inplace=True)
+data_long = data_long.rename(columns={'EDUC':'Educ'})
+data_long.drop(columns=['Subject ID','MRI ID','Group','Visit','MR Delay'],inplace=True)
+
+# Concateno ambos datasets
+data = pd.concat([data_cross,data_long])
+data.head()
+
+# Visualizo con describe los datos de ambos juntos
+print(data.describe())
+
+# Realizo el Grafico de Calor
+cor = data.corr()
+fig = plt.figure(figsize=(9, 8), facecolor='ivory')
+sns.heatmap(cor, xticklabels=cor.columns.values,yticklabels=cor.columns.values, annot=True, cmap="coolwarm")
+plt.title("Influencia de Factores en la Prediccion de Demencia",size = 20, color = 'black')
+plt.show()
+
+# Conclusion Bonus:
+# Aqui es un poco mas visible (con ambos dataset), como la evaluacion cognitiva 
+# (MMSE) y el volumen completo normalizado de cerebro (nWBV),
+# podrian ser los mejores metodos para estudio: con el fin
+# de predecir futuros casos de Demencia
